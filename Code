@@ -1,0 +1,182 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+import ipywidgets as widgets
+from IPython.display import display
+from IPython.display import Image
+
+# pip install ultralytics
+
+from ultralytics import YOLO
+
+min_confidence = 0.70
+
+# load model
+#model = YOLO("yolo11n-pose.pt")
+
+# Train the model
+#results = model.train(data="dog-pose.yaml", epochs=100, imgsz=640)
+
+model = YOLO('best.pt')
+
+# Testing image 1
+results = model('sit_1.jpg')
+
+image_sit1 = results[0].plot()
+
+resized_image = cv2.resize(image_sit1, (800, 800))
+
+resized_image_rgb = cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB)
+
+plt.imshow(resized_image_rgb)
+plt.axis('off')
+plt.show()
+
+# Testing image 2
+results1 = model('sit_3.jpg')
+
+image_sit_3 = results1[0].plot()
+
+resized_image1 = cv2.resize(image_sit_3, (800, 800))
+
+resized_image_rgb1 = cv2.cvtColor(resized_image1, cv2.COLOR_BGR2RGB)
+
+plt.imshow(resized_image_rgb1)
+plt.axis('off')
+plt.show()
+
+video_1 = r'video_1.mp4'
+cap = cv2.VideoCapture(video_1)
+
+
+
+img_widget = widgets.Image(format='jpeg', width=800, height=800)
+display(img_widget)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    results = model(frame)
+    annotated_frame = results[0].plot()
+    
+    rotated_frame = cv2.rotate(annotated_frame, cv2.ROTATE_90_CLOCKWISE)
+
+    resized_frame = cv2.resize(rotated_frame, (600, 600))
+
+    ret2, jpeg = cv2.imencode('.jpg', resized_frame)
+    if ret2:
+        img_widget.value = jpeg.tobytes()
+    
+    time.sleep(0.0001)
+
+cap.release()
+
+video_2 = r'not_dog.mp4'
+cap = cv2.VideoCapture(video_2)
+
+img_widget = widgets.Image(format='jpeg', width=800, height=800)
+display(img_widget)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    results = model(frame)
+    annotated_frame = results[0].plot()
+
+    rotated_frame = cv2.rotate(annotated_frame, cv2.ROTATE_90_CLOCKWISE)
+
+    resized_frame = cv2.resize(rotated_frame, (600, 600))
+
+    ret2, jpeg = cv2.imencode('.jpg', resized_frame)
+    if ret2:
+        img_widget.value = jpeg.tobytes()
+    time.sleep(0.0001)
+
+cap.release()
+
+video_path = "Atlas_1.mp4"
+cap = cv2.VideoCapture(video_path)
+
+
+# Define skeleton connections (pairs of keypoints)
+skeleton_pairs = [
+    (0, 5), (0, 6),  # Nose to front paws
+    (5, 11), (6, 12),  # Front paws to back paws
+    (11, 15), (12, 15)  # Back paws to tail
+]
+
+while cap.isOpened():
+    ret, frame = cap.read()
+
+    if not ret:
+        print("Error: No frame received.")
+        break
+
+    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+
+    frame_height, frame_width = frame.shape[:2]
+
+    new_height = int(frame_height * 0.85)
+
+
+    frame = frame[frame_height - new_height :, :]
+
+    results = model(frame)
+
+
+    if not results or results[0].keypoints is None:
+        print("No keypoints detected.")
+        cv2.imshow("Pose Detection", frame)
+    else:
+        keypoints = results[0].keypoints.xy.numpy()[0]
+
+
+        missing_points = np.sum((keypoints == 0).all(axis=1))
+        print(f"Detected {keypoints.shape[0]} keypoints. Missing: {missing_points}")
+
+
+        back_paws_y = np.mean([keypoints[11][1], keypoints[12][1]]) if keypoints[11][1] > 0 and keypoints[12][1] > 0 else None
+        front_paws_y = np.mean([keypoints[5][1], keypoints[6][1]]) if keypoints[5][1] > 0 and keypoints[6][1] > 0 else None
+        tail_y = keypoints[15][1] if keypoints[15][1] > 0 else None
+
+
+        if back_paws_y and front_paws_y and tail_y:
+            sitting_threshold = 30 
+            if (back_paws_y > front_paws_y + sitting_threshold) and (tail_y > front_paws_y + sitting_threshold):
+                pose = "Sitting"
+            else:
+                pose = "Not Sitting"
+        else:
+            pose = "Unknown"
+
+
+        x_min, y_min = np.min(keypoints[:, 0]), np.min(keypoints[:, 1])
+        x_max, y_max = np.max(keypoints[:, 0]), np.max(keypoints[:, 1])
+        cv2.rectangle(frame, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 2)
+
+        cv2.putText(frame, f"Dog - {pose}", (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+
+        for i, (x, y) in enumerate(keypoints):
+            if x > 0 and y > 0:
+                cv2.circle(frame, (int(x), int(y)), 5, (0, 0, 255), -1)
+                cv2.putText(frame, f"{i}", (int(x), int(y) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        for pair in skeleton_pairs:
+            pt1, pt2 = keypoints[pair[0]], keypoints[pair[1]]
+            if (pt1[0] > 0 and pt1[1] > 0) and (pt2[0] > 0 and pt2[1] > 0):  # Ignore missing keypoints
+                cv2.line(frame, (int(pt1[0]), int(pt1[1])), (int(pt2[0]), int(pt2[1])), (255, 0, 0), 2)
+
+        cv2.imshow("Pose Detection", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
