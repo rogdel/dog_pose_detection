@@ -1,2 +1,6 @@
 # dog_pose_detection
 MSDS 692
+
+This project focuses on computer vision and pose estimation to detect whether a dog is sitting, standing, or in motion. Using ultralytics dog-pose detection, the model predicts keypoints on a dog's body and classifies it's pose based on several features. The goal of this project is to monitor Atlas, a German Shepherd-Golden Retriever mix. By implementing pose detection, this system could be useful for pet behavior monitoring and training reinforcement.
+
+The model was trained using the Ultralytics Dog Pose Dataset, containing 12,000+ labeled dog images. It was fine-tuned for 100 epochs using Google Colab, and predictions were tested on video footage of Atlas and tested of video of deer. The system successfully detects keypoints on the dog's legs,face,body, and tail, but struggles with correctly classifying sitting vs. standing. Additionally, it became obvious that it is a pose detection model not necessarily a dog pose detection model. The video of the deer showed that it was a dog. Future improvements include fine-tuning with more Atlas-specific images(or your own dog), adjusting confidence thresholds, and training a secondary classifier to improve pose classification accuracy. This project demonstrates the power of machine learning in real-world pet monitoring applications.
